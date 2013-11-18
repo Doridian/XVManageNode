@@ -34,11 +34,18 @@ func maintainVMList() {
 		return
 	}
 	
+	virDomainsOffline, err := virConn.ListDefinedDomains()
+	if err != nil {
+		log.Printf("Libvirt error: %v", err.Error())
+		return
+	}
+	
 	vmDomains.Lock()
 	defer vmDomains.Unlock()
 
-	for _, vmDomain := range vmDomains.m {
+	for virName, vmDomain := range vmDomains.m {
 		vmDomain.removePossible = true
+		vmDomains.m[virName] = vmDomain
 	}
 	
 	for _, virDomainID := range virDomains {
@@ -48,7 +55,7 @@ func maintainVMList() {
 		
 		vmDomain := vmDomains.m[virName]
 		vmDomain.name = virName
-		vmDomain.vmid = virDomainID
+
 		vmDomain.removePossible = false
 		
 		vmDomain.poweredOn = virDomainInfo.GetState() == 1
@@ -69,7 +76,20 @@ func maintainVMList() {
 		vmDomains.m[virName] = vmDomain
 	}
 	
-	var deletionList []string
+	for _, virName := range virDomainsOffline {
+		vmDomain := vmDomains.m[virName]
+		vmDomain.name = virName
+		vmDomain.poweredOn = false
+		vmDomain.cpuUsage = 0
+		vmDomain.ramUsage = 0
+		vmDomain.vcpus = 1
+		vmDomain.removePossible = false
+		vmDomain.lastCpuTime = 0
+		vmDomain.lastCheck = time.Unix(0, 0)
+		vmDomains.m[virName] = vmDomain
+	}
+	
+	deletionList := make([]string, 0)
 	
 	for virName, vmDomain := range vmDomains.m {
 		if vmDomain.removePossible {

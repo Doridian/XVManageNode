@@ -7,7 +7,6 @@ import (
 
 type VMDomain struct {
 	name string
-	vmid uint32
 	
 	poweredOn bool
 
