@@ -28,6 +28,7 @@ type VIRXMLResM struct {
 
 type VMNetDefinition struct {
 	mac string
+	vmid uint32
 	vmname string
 	ifname string
 }
@@ -51,5 +52,6 @@ func GetNWParams(name string) *VMNetDefinition {
 	ret.vmname = name
 	ret.mac = iFace.Mac.Address
 	ret.ifname = iFace.Target.Dev
+	ret.vmid = 0
 	return ret
 }

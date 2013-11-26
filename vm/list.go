@@ -79,6 +79,7 @@ func maintainVMList() {
 		vmDomains.m[virName] = vmDomain
 		
 		virNWParams := *GetNWParams(virName)
+		virNWParams.vmid = virDomainID
 		vmNWParams[virNWParams.ifname] = *GetNWParams(virName)
 	}
 	
@@ -95,6 +96,7 @@ func maintainVMList() {
 		vmDomains.m[virName] = vmDomain
 		
 		virNWParams := *GetNWParams(virName)
+		virNWParams.vmid = 0
 		vmNWParams["offline_" + virName] = virNWParams
 	}
 	
