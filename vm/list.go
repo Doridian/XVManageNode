@@ -10,8 +10,6 @@ var vmDomains struct {
     m map[string]VMDomain
 }
 
-var curTicks int
-
 func maintainVMListTicker() {
 	ticker := time.NewTicker(10 * time.Second)
 	go func() {
@@ -42,8 +40,8 @@ func maintainVMList() {
 		return
 	}
 	
-	var vmNWParams map[string]*VMNetDefinition
-	vmNWParams = make(map[string]*VMNetDefinition)
+	var vmNWParams map[string]VMNetDefinition
+	vmNWParams = make(map[string]VMNetDefinition)
 	
 	vmDomains.Lock()
 	defer vmDomains.Unlock()
@@ -80,7 +78,7 @@ func maintainVMList() {
 		
 		vmDomains.m[virName] = vmDomain
 		
-		virNWParams := GetNWParams(virDomainID)
+		virNWParams := *GetNWParams(virDomainID)
 		virNWParams.vmname = virName
 		vmNWParams[virNWParams.ifname] = virNWParams
 	}
@@ -110,13 +108,7 @@ func maintainVMList() {
 		delete(vmDomains.m, virName)
 	}
 	
-	if curTicks >= 6 {
-		log.Println("Refreshing VM networks")
-		curTicks = 0
-		maintainVSwitch(vmNWParams)
-	} else {
-		curTicks++
-	}
+	maintainVSwitch(vmNWParams)
 }
 
 type VMStatus struct {

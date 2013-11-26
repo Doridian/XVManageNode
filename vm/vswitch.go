@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"os"
 	"encoding/json"
+	"reflect"
 )
 
 //29(vnet13): addr:fe:54:00:fc:56:22
@@ -15,21 +16,35 @@ var ofctlRegex = regexp.MustCompile("^([0-9]+)\\(([a-zA-Z0-9]+)\\): addr:[0-9a-f
 
 var nodeIPs map[string][]string
 
-func loadIPConfig() {
+var lastVMDefs map[string]VMNetDefinition
+
+func loadIPConfig() bool {
+	var newNodeIPs map[string][]string
 	fileReader, err := os.Open("ips.json")
 	if err != nil {
 		log.Panicf("Load IPs: open err: %v", err)
 	}	
 	jsonReader := json.NewDecoder(fileReader)
-	err = jsonReader.Decode(&nodeIPs)
+	err = jsonReader.Decode(&newNodeIPs)
 	fileReader.Close()
 	if err != nil {
 		log.Panicf("Load IPs: json err: %v", err)
 	}
+	if reflect.DeepEqual(newNodeIPs, nodeIPs) {
+		return false
+	}
+	nodeIPs = newNodeIPs
+	return true
 }
 
-func maintainVSwitch(vmDefs map[string]*VMNetDefinition) {
-	loadIPConfig()
+func maintainVSwitch(vmDefs map[string]VMNetDefinition) {
+	if !loadIPConfig() && reflect.DeepEqual(vmDefs, lastVMDefs) {
+		return
+	}
+	
+	log.Println("Refreshing VM networks")
+	
+	lastVMDefs = vmDefs
 
 	cmd := exec.Command("sudo", "ovs-ofctl", "dump-ports-desc", "ovs0")
 	output, err := cmd.Output()
@@ -54,7 +69,7 @@ func maintainVSwitch(vmDefs map[string]*VMNetDefinition) {
 		
 		ifName := outSplit[2]
 		vmDef := vmDefs[ifName]	
-		if vmDef == nil {
+		if vmDef.vmid <= 0 {
 			continue
 		}
 		portID := outSplit[1]

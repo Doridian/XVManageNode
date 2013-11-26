@@ -21,7 +21,6 @@ type VMDomain struct {
 }
 
 func InitializeLibvirt() {
-	curTicks = 999
 	vmDomains.m = make(map[string]VMDomain)
 	maintainVMList()
 	go maintainVMListTicker()
