@@ -80,7 +80,7 @@ func maintainVSwitch(vmDefs map[string]VMNetDefinition) {
 		allowedIPs := nodeIPs[vmDef.vmname]
 		
 		for _, allowedIP := range allowedIPs {
-			exec.Command("sudo", "ovs-ofctl", "add-flow", "ovs0", "ip,priority=2,nw_dst=" + allowedIP + ",actions=output:" + portID).Run()
+			exec.Command("sudo", "ovs-ofctl", "add-flow", "ovs0", "ip,priority=3,nw_dst=" + allowedIP + ",actions=output:" + portID).Run()
 		}
 	}
 	
