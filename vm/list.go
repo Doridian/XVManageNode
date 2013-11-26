@@ -10,6 +10,8 @@ var vmDomains struct {
     m map[string]VMDomain
 }
 
+var curTicks int
+
 func maintainVMListTicker() {
 	ticker := time.NewTicker(10 * time.Second)
 	go func() {
@@ -39,6 +41,9 @@ func maintainVMList() {
 		log.Printf("Libvirt error: %v", err.Error())
 		return
 	}
+	
+	var vmNWParams map[string]*VMNetDefinition
+	vmNWParams = make(map[string]*VMNetDefinition)
 	
 	vmDomains.Lock()
 	defer vmDomains.Unlock()
@@ -74,6 +79,10 @@ func maintainVMList() {
 		vmDomain.ramUsage = float64(virDomainInfo.GetMemory()) * 100.0 / float64(virDomainInfo.GetMaxMem())
 		
 		vmDomains.m[virName] = vmDomain
+		
+		virNWParams := GetNWParams(virDomainID)
+		virNWParams.vmname = virName
+		vmNWParams[virNWParams.ifname] = virNWParams
 	}
 	
 	for _, virName := range virDomainsOffline {
@@ -99,6 +108,14 @@ func maintainVMList() {
 	
 	for _, virName := range deletionList {
 		delete(vmDomains.m, virName)
+	}
+	
+	if curTicks >= 6 {
+		log.Println("Refreshing VM networks")
+		curTicks = 0
+		maintainVSwitch(vmNWParams)
+	} else {
+		curTicks++
 	}
 }
 

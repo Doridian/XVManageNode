@@ -10,13 +10,13 @@ type VIRXMLGraphics struct {
 	Port string `xml:"port,attr"`
 }
 
-type VIRXMLDevices struct {
+type VIRXMLDevicesG struct {
 	Graphics []VIRXMLGraphics `xml:"graphics"`
 }
 
-type VIRXMLRes struct {
+type VIRXMLResG struct {
 	XMLName xml.Name `xml:"domain"`
-	Devices	VIRXMLDevices `xml:"devices"`
+	Devices	VIRXMLDevicesG `xml:"devices"`
 }
 
 func GetVNCPort(name string) int64 {
@@ -25,7 +25,7 @@ func GetVNCPort(name string) int64 {
 
 	virDomain := getLibvirtDomain(virConn, name)
 	virStrXML, _ := virDomain.GetXMLDesc(0)
-	var virXML VIRXMLRes
+	var virXML VIRXMLResG
 	err := xml.Unmarshal([]byte(virStrXML), &virXML)
 	if err != nil {
 		log.Printf("XML dom error: %v", err)

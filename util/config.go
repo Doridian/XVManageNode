@@ -11,9 +11,7 @@ import (
 var sslCertificates tls.Certificate
 
 //Global Node config
-var nodeConfig NodeConfig
-
-type NodeConfig struct {
+var nodeConfig struct {
 	ApiKey string
 }
 

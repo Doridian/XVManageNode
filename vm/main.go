@@ -21,6 +21,7 @@ type VMDomain struct {
 }
 
 func InitializeLibvirt() {
+	curTicks = 999
 	vmDomains.m = make(map[string]VMDomain)
 	maintainVMList()
 	go maintainVMListTicker()
@@ -36,6 +37,11 @@ func getLibvirtConnection() libvirt.VirConnection {
 
 func getLibvirtDomain(virConn libvirt.VirConnection, name string) libvirt.VirDomain {
 	virDomain, _ := virConn.LookupDomainByName(name)
+	return virDomain
+}
+
+func getLibvirtDomainByID(virConn libvirt.VirConnection, id uint32) libvirt.VirDomain {
+	virDomain, _ := virConn.LookupDomainById(id)
 	return virDomain
 }
 
