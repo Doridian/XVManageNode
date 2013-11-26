@@ -78,9 +78,8 @@ func maintainVMList() {
 		
 		vmDomains.m[virName] = vmDomain
 		
-		virNWParams := *GetNWParams(virDomainID)
-		virNWParams.vmname = virName
-		vmNWParams[virNWParams.ifname] = virNWParams
+		virNWParams := *GetNWParams(virName)
+		vmNWParams[virNWParams.ifname] = *GetNWParams(virName)
 	}
 	
 	for _, virName := range virDomainsOffline {
@@ -94,6 +93,9 @@ func maintainVMList() {
 		vmDomain.lastCpuTime = 0
 		vmDomain.lastCheck = time.Unix(0, 0)
 		vmDomains.m[virName] = vmDomain
+		
+		virNWParams := *GetNWParams(virName)
+		vmNWParams["offline_" + virName] = virNWParams
 	}
 	
 	deletionList := make([]string, 0)

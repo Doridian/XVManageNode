@@ -7,6 +7,8 @@ import (
 	"regexp"
 	"bytes"
 	"os"
+	"io"
+	"fmt"
 	"encoding/json"
 	"reflect"
 )
@@ -46,6 +48,7 @@ func maintainVSwitch(vmDefs map[string]VMNetDefinition) {
 	
 	lastVMDefs = vmDefs
 
+	//OpenVSWitch
 	cmd := exec.Command("sudo", "ovs-ofctl", "dump-ports-desc", "ovs0")
 	output, err := cmd.Output()
 	if err != nil {
@@ -69,7 +72,7 @@ func maintainVSwitch(vmDefs map[string]VMNetDefinition) {
 		
 		ifName := outSplit[2]
 		vmDef := vmDefs[ifName]	
-		if vmDef.vmid <= 0 {
+		if vmDef.vmname == "" {
 			continue
 		}
 		portID := outSplit[1]
@@ -79,7 +82,26 @@ func maintainVSwitch(vmDefs map[string]VMNetDefinition) {
 		for _, allowedIP := range allowedIPs {
 			exec.Command("sudo", "ovs-ofctl", "add-flow", "ovs0", "ip,priority=2,nw_dst=" + allowedIP + ",actions=output:" + portID).Run()
 		}
-		
-		//log.Printf("Port %v is VM %v", portID, allowedIPs)
 	}
+	
+	//DHCP
+	dhcpConfig, _ := os.Create("/etc/dhcp/dhcpd.conf")
+	dhcpHeader, _ := os.Open("dhcpd.conf.head")
+	io.Copy(dhcpConfig, dhcpHeader)
+	dhcpHeader.Close()
+	
+	for _, vmDef := range vmDefs {
+		allowedIPs := nodeIPs[vmDef.vmname]
+		
+		if len(allowedIPs) < 1 {
+			log.Printf("Warning: VM %v has no assigned IPs!!!", vmDef.vmname)
+			continue
+		}
+		
+		fmt.Fprintf(dhcpConfig, "\nhost %v {\n\thardware ethernet %v;\n\tfixed-address %v;\n}\n", vmDef.vmname, vmDef.mac, allowedIPs[0])
+	}
+	
+	dhcpConfig.Close()
+	
+	exec.Command("sudo", "/usr/sbin/service", "isc-dhcp-server", "restart").Run()
 }

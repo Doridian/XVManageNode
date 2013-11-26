@@ -1,3 +1,4 @@
 *.json
 *.crt
 *.key
+/xvmanage_node

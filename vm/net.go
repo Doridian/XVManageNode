@@ -27,18 +27,16 @@ type VIRXMLResM struct {
 }
 
 type VMNetDefinition struct {
-	vmid uint32
 	mac string
 	vmname string
 	ifname string
 }
 
-//Returns (mac, devname)
-func GetNWParams(id uint32) *VMNetDefinition {
+func GetNWParams(name string) *VMNetDefinition {
 	virConn := getLibvirtConnection()
 	defer virConn.UnrefAndCloseConnection()
 
-	virDomain := getLibvirtDomainByID(virConn, id)
+	virDomain := getLibvirtDomain(virConn, name)
 	virStrXML, _ := virDomain.GetXMLDesc(0)
 	var virXML VIRXMLResM
 	err := xml.Unmarshal([]byte(virStrXML), &virXML)
@@ -50,7 +48,7 @@ func GetNWParams(id uint32) *VMNetDefinition {
 	iFace := virXML.Devices.Interfaces[0]
 	
 	ret := new(VMNetDefinition)
-	ret.vmid = id
+	ret.vmname = name
 	ret.mac = iFace.Mac.Address
 	ret.ifname = iFace.Target.Dev
 	return ret
