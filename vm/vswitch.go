@@ -57,7 +57,13 @@ func maintainVSwitch(vmDefs map[string]VMNetDefinition) {
 	}
 	outputBufio := bufio.NewReader(bytes.NewReader(output))
 	
-	exec.Command("sudo", "/root/flows.sh").Run()
+	output, err = exec.Command("sudo", "/root/flows.sh").Output()
+	if err != nil {
+		log.Printf("flows.sh error: %v", err)
+		return
+	}
+	
+	ethPortID := string(output)
 	
 	for {
 		out, err := outputBufio.ReadString('\n')
@@ -81,6 +87,7 @@ func maintainVSwitch(vmDefs map[string]VMNetDefinition) {
 		
 		for _, allowedIP := range allowedIPs {
 			exec.Command("sudo", "ovs-ofctl", "add-flow", "ovs0", "ip,priority=3,nw_dst=" + allowedIP + ",actions=output:" + portID).Run()
+			exec.Command("sudo", "ovs-ofctl", "add-flow", "ovs0", "ip,priority=2,nw_src=" + allowedIP + ",actions=output:" + ethPortID).Run()
 		}
 	}
 	
