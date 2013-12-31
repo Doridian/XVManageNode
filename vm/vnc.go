@@ -20,7 +20,7 @@ type VIRXMLResG struct {
 }
 
 func GetVNCPort(name string) int64 {
-	virConn := getLibvirtConnection()
+	virConn := getLibvirtConnection("qemu")
 	defer virConn.UnrefAndCloseConnection()
 
 	virDomain := getLibvirtDomain(virConn, name)

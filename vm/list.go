@@ -24,21 +24,6 @@ func maintainVMListTicker() {
 
 func maintainVMList() {
 	log.Println("Refreshing VM stats")
-
-	virConn := getLibvirtConnection()
-	defer virConn.UnrefAndCloseConnection()
-	
-	virDomains, err := virConn.ListDomains()
-	if err != nil {
-		log.Printf("Libvirt error: %v", err.Error())
-		return
-	}
-	
-	virDomainsOffline, err := virConn.ListDefinedDomains()
-	if err != nil {
-		log.Printf("Libvirt error: %v", err.Error())
-		return
-	}
 	
 	var vmNWParams map[string]VMNetDefinition
 	vmNWParams = make(map[string]VMNetDefinition)
@@ -50,7 +35,41 @@ func maintainVMList() {
 		vmDomain.removePossible = true
 		vmDomains.m[virName] = vmDomain
 	}
+
+	maintainVMListType("qemu", vmNWParams)
+	maintainVMListType("lxc", vmNWParams)
+
+	deletionList := make([]string, 0)
 	
+	for virName, vmDomain := range vmDomains.m {
+		if vmDomain.removePossible {
+			deletionList = append(deletionList, virName)
+		}
+	}
+	
+	for _, virName := range deletionList {
+		delete(vmDomains.m, virName)
+	}
+	
+	maintainVSwitch(vmNWParams)
+}	
+
+func maintainVMListType(vmType string, vmNWParams map[string]VMNetDefinition) {
+	virConn := getLibvirtConnection(vmType)
+	defer virConn.UnrefAndCloseConnection()
+
+	virDomains, err := virConn.ListDomains()
+	if err != nil {
+		log.Printf("Libvirt error: %v", err.Error())
+		return
+	}
+	
+	virDomainsOffline, err := virConn.ListDefinedDomains()
+	if err != nil {
+		log.Printf("Libvirt error: %v", err.Error())
+		return
+	}
+
 	for _, virDomainID := range virDomains {
 		virDomain, _ := virConn.LookupDomainById(virDomainID)
 		virDomainInfo, _ := virDomain.GetInfo()
@@ -58,6 +77,7 @@ func maintainVMList() {
 		
 		vmDomain := vmDomains.m[virName]
 		vmDomain.name = virName
+		vmDomain.vmType = vmType
 
 		vmDomain.removePossible = false
 		
@@ -78,14 +98,15 @@ func maintainVMList() {
 		
 		vmDomains.m[virName] = vmDomain
 		
-		virNWParams := *GetNWParams(virName)
+		virNWParams := *GetNWParams(virName, vmType)
 		virNWParams.vmid = virDomainID
-		vmNWParams[virNWParams.ifname] = *GetNWParams(virName)
+		vmNWParams[virNWParams.ifname] = virNWParams
 	}
 	
 	for _, virName := range virDomainsOffline {
 		vmDomain := vmDomains.m[virName]
 		vmDomain.name = virName
+		vmDomain.vmType = vmType
 		vmDomain.poweredOn = false
 		vmDomain.cpuUsage = 0
 		vmDomain.ramUsage = 0
@@ -95,24 +116,10 @@ func maintainVMList() {
 		vmDomain.lastCheck = time.Unix(0, 0)
 		vmDomains.m[virName] = vmDomain
 		
-		virNWParams := *GetNWParams(virName)
+		virNWParams := *GetNWParams(virName, vmType)
 		virNWParams.vmid = 0
 		vmNWParams["offline_" + virName] = virNWParams
 	}
-	
-	deletionList := make([]string, 0)
-	
-	for virName, vmDomain := range vmDomains.m {
-		if vmDomain.removePossible {
-			deletionList = append(deletionList, virName)
-		}
-	}
-	
-	for _, virName := range deletionList {
-		delete(vmDomains.m, virName)
-	}
-	
-	maintainVSwitch(vmNWParams)
 }
 
 type VMStatus struct {

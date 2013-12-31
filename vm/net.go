@@ -43,8 +43,8 @@ type VMNetDefinition struct {
 	ifname string
 }
 
-func GetNWParams(name string) *VMNetDefinition {
-	virConn := getLibvirtConnection()
+func GetNWParams(name string, vmType string) *VMNetDefinition {
+	virConn := getLibvirtConnection(vmType)
 	defer virConn.UnrefAndCloseConnection()
 
 	virDomain := getLibvirtDomain(virConn, name)
@@ -67,7 +67,7 @@ func GetNWParams(name string) *VMNetDefinition {
 }
 
 //29(vnet13): addr:fe:54:00:fc:56:22
-var ofctlRegex = regexp.MustCompile("^([0-9]+)\\(([a-zA-Z0-9]+)\\): addr:[0-9a-f:]+$")
+var ofctlRegex = regexp.MustCompile("^([0-9]+)\\(([a-zA-Z0-9]+)\\): addr:([0-9a-f:]+)$")
 
 var nodeIPs map[string][]string
 
@@ -139,7 +139,7 @@ func maintainVSwitch(vmDefs map[string]VMNetDefinition) {
 		allowedIPs := nodeIPs[vmDef.vmname]
 		
 		for _, allowedIP := range allowedIPs {
-			exec.Command("sudo", "ovs-ofctl", "add-flow", "ovs0", "ip,priority=3,nw_dst=" + allowedIP + ",actions=output:" + portID).Run()
+			exec.Command("sudo", "ovs-ofctl", "add-flow", "ovs0", "ip,priority=3,nw_dst=" + allowedIP + ",actions=mod_dl_dst=" + vmDef.mac + ",output:" + portID).Run()
 			exec.Command("sudo", "ovs-ofctl", "add-flow", "ovs0", "ip,priority=2,nw_src=" + allowedIP + ",actions=output:" + ethPortID).Run()
 		}
 	}

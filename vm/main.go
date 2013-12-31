@@ -7,6 +7,7 @@ import (
 
 type VMDomain struct {
 	name string
+	vmType string
 	
 	poweredOn bool
 
@@ -26,8 +27,14 @@ func InitializeLibvirt() {
 	go maintainVMListTicker()
 }
 
-func getLibvirtConnection() libvirt.VirConnection {
-	virConn, err := libvirt.NewVirConnection("qemu:///system")
+func getLibvirtConnection(vmType string) libvirt.VirConnection {
+	var vmURL string
+	if vmType == "qemu" {
+		vmURL = "qemu:///system"
+	} else {
+		vmURL = vmType + ":///"
+	}
+	virConn, err := libvirt.NewVirConnection(vmURL)
 	if err != nil {
 		log.Printf("Libvirt load: error: %v", err)
 	}
@@ -59,7 +66,7 @@ func GetStatus(name string) VMStatus {
 }
 
 func ProcessCommand(name string, command string) {
-	virConn := getLibvirtConnection()
+	virConn := getLibvirtConnection("qemu")
 	defer virConn.UnrefAndCloseConnection()
 
 	virDomain := getLibvirtDomain(virConn, name)
