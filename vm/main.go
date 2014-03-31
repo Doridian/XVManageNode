@@ -81,7 +81,7 @@ func ProcessCommand(name string, command string) {
 		case "shutdown":
 			virDomain.Shutdown()
 		case "reboot":
-			virDomain.Reboot()
+			virDomain.Reboot(0)
 	}
 }
 

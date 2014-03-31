@@ -41,6 +41,9 @@ type VMNetDefinition struct {
 	vmid uint32
 	vmname string
 	ifname string
+
+	mac2 string
+	ifname2 string
 }
 
 func GetNWParams(name string, vmType string) *VMNetDefinition {
@@ -57,12 +60,19 @@ func GetNWParams(name string, vmType string) *VMNetDefinition {
 	}
 	
 	iFace := virXML.Devices.Interfaces[0]
+	iFace2 := virXML.Devices.Interfaces[1]
 	
 	ret := new(VMNetDefinition)
 	ret.vmname = name
+
 	ret.mac = iFace.Mac.Address
 	ret.ifname = iFace.Target.Dev
+
+	ret.mac2 = iFace2.Mac.Address
+	ret.ifname2 = iFace2.Target.Dev
+
 	ret.vmid = 0
+
 	return ret
 }
 
@@ -140,6 +150,7 @@ func maintainVSwitch(vmDefs map[string]VMNetDefinition) {
 		
 		for _, allowedIP := range allowedIPs {
 			exec.Command("sudo", "ovs-ofctl", "add-flow", "ovs0", "ip,priority=3,nw_dst=" + allowedIP + ",actions=mod_dl_dst=" + vmDef.mac + ",output:" + portID).Run()
+			//exec.Command("sudo", "ovs-ofctl", "add-flow", "xovs0", "ip,priority=3,nw_dst=" + allowedIP + ",output:" + portID).Run()
 			exec.Command("sudo", "ovs-ofctl", "add-flow", "ovs0", "ip,priority=2,nw_src=" + allowedIP + ",actions=output:" + ethPortID).Run()
 		}
 	}
@@ -158,7 +169,8 @@ func maintainVSwitch(vmDefs map[string]VMNetDefinition) {
 			continue
 		}
 		
-		fmt.Fprintf(dhcpConfig, "\nhost %v {\n\thardware ethernet %v;\n\tfixed-address %v;\n}\n", vmDef.vmname, vmDef.mac, allowedIPs[0])
+		fmt.Fprintf(dhcpConfig, "\nhost %v_ext {\n\thardware ethernet %v;\n\tfixed-address %v;\n}\n", vmDef.vmname, vmDef.mac, allowedIPs[0])
+		fmt.Fprintf(dhcpConfig, "\nhost %v_int {\n\thardware ethernet %v;\n\tfixed-address 10.88.1.%v;\n}\n", vmDef.vmname, vmDef.mac2, strings.Split(allowedIPs[0], ".")[3])
 	}
 	
 	dhcpConfig.Close()
