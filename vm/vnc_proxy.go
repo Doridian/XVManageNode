@@ -10,7 +10,7 @@ import (
 	"crypto/des"
 	"crypto/tls"
 	"sync/atomic"
-	"xvmanage_node/util"
+	"github.com/XVManage/Node/util"
 )
 
 //Gets a free port (might need more smartness soon or something)

@@ -3,8 +3,8 @@ import (
 	"crypto/tls"
 	"net"
 	"log"
-	"xvmanage_node/vm"
-	"xvmanage_node/util"
+	"github.com/XVManage/Node/vm"
+	"github.com/XVManage/Node/util"
 )
 
 func main() {

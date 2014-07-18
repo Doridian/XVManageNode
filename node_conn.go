@@ -6,8 +6,8 @@ import (
 	"bytes"
 	"encoding/binary"
 	"encoding/json"
-	"xvmanage_node/vm"
-	"xvmanage_node/util"
+	"github.com/XVManage/Node/vm"
+	"github.com/XVManage/Node/util"
 )
 
 type APIRequest struct {
