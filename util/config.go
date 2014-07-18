@@ -10,9 +10,15 @@ import (
 //Global SSL/TLS config
 var sslCertificates tls.Certificate
 
+type InterfaceConfig struct {
+	Type string
+	Master string
+}
+
 //Global Node config
 var nodeConfig struct {
 	ApiKey string
+	Interfaces []InterfaceConfig
 }
 
 var sslConfigMutex sync.Mutex
@@ -26,6 +32,14 @@ func GetSslConfig() *tls.Config {
 
 func GetApiKey() string {
 	return nodeConfig.ApiKey
+}
+
+func GetAllInterfaceConfigs() []InterfaceConfig {
+	return nodeConfig.Interfaces
+}
+
+func GetInterfaceConfig(number int) InterfaceConfig {
+	return nodeConfig.Interfaces[number]
 }
 
 func LoadConfig() {

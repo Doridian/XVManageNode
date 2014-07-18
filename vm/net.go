@@ -12,6 +12,7 @@ import (
 	"io"
 	"fmt"
 	"reflect"
+	"github.com/XVManage/Node/util"
 )
 
 type VIRXMLMac struct {
@@ -36,14 +37,15 @@ type VIRXMLResM struct {
 	Devices	VIRXMLDevicesM `xml:"devices"`
 }
 
-type VMNetDefinition struct {
+type VMNetIfaceDefinition struct {
 	mac string
+	ifname string
+}
+
+type VMNetDefinition struct {
 	vmid uint32
 	vmname string
-	ifname string
-
-	mac2 string
-	ifname2 string
+	ifaces []VMNetIfaceDefinition
 }
 
 func GetNWParams(name string, vmType string) *VMNetDefinition {
@@ -59,17 +61,16 @@ func GetNWParams(name string, vmType string) *VMNetDefinition {
 		return nil
 	}
 	
-	iFace := virXML.Devices.Interfaces[0]
-	iFace2 := virXML.Devices.Interfaces[1]
-	
 	ret := new(VMNetDefinition)
 	ret.vmname = name
-
-	ret.mac = iFace.Mac.Address
-	ret.ifname = iFace.Target.Dev
-
-	ret.mac2 = iFace2.Mac.Address
-	ret.ifname2 = iFace2.Target.Dev
+	
+	ret.ifaces = make([]VMNetIfaceDefinition, len(virXML.Devices.Interfaces))
+	
+	for i := 0; i < len(ret.ifaces); i++ {
+		_virIf := virXML.Devices.Interfaces[i]
+		ret.ifaces[i].mac = _virIf.Mac.Address
+		ret.ifaces[i].ifname = _virIf.Target.Dev
+	}
 
 	ret.vmid = 0
 
@@ -79,12 +80,12 @@ func GetNWParams(name string, vmType string) *VMNetDefinition {
 //29(vnet13): addr:fe:54:00:fc:56:22
 var ofctlRegex = regexp.MustCompile("^([0-9]+)\\(([a-zA-Z0-9]+)\\): addr:([0-9a-f:]+)$")
 
-var nodeIPs map[string][]string
+var nodeIPs map[string][][]string
 
 var lastVMDefs map[string]VMNetDefinition
 
 func loadIPConfig() bool {
-	var newNodeIPs map[string][]string
+	var newNodeIPs map[string][][]string
 	fileReader, err := os.Open("ips.json")
 	if err != nil {
 		log.Panicf("Load IPs: open err: %v", err)
@@ -102,7 +103,7 @@ func loadIPConfig() bool {
 	return true
 }
 
-func maintainVSwitch(vmDefs map[string]VMNetDefinition) {
+func maintainInterfaces(vmDefs map[string]VMNetDefinition) {
 	if !loadIPConfig() && reflect.DeepEqual(vmDefs, lastVMDefs) {
 		return
 	}
@@ -112,19 +113,62 @@ func maintainVSwitch(vmDefs map[string]VMNetDefinition) {
 	lastVMDefs = vmDefs
 
 	//OpenVSWitch
-	cmd := exec.Command("sudo", "ovs-ofctl", "dump-ports-desc", "ovs0")
+	_, err := exec.Command("sudo", "/root/flows.sh").Output()
+	if err != nil {
+		log.Printf("flows.sh error: %v", err)
+		return
+	}
+	
+	ifaceConfigs := util.GetAllInterfaceConfigs()
+	for ifaceNum, ifaceConfig := range ifaceConfigs {
+		switch ifaceConfig.Type {
+			case "ovs":
+				maintainVSwitch(vmDefs, ifaceNum, ifaceConfig.Master)
+			case "bridge":
+				maintainBridge(vmDefs, ifaceNum, ifaceConfig.Master)
+		}
+	}
+	
+	//DHCP
+	dhcpConfig, _ := os.Create("/etc/dhcp/dhcpd.conf")
+	dhcpHeader, _ := os.Open("dhcpd.conf.head")
+	io.Copy(dhcpConfig, dhcpHeader)
+	dhcpHeader.Close()
+	
+	for _, vmDef := range vmDefs {		
+		for vmIfNum, vmIfDef := range vmDef.ifaces {
+			if vmIfNum >= len(nodeIPs[vmDef.vmname]) {
+				log.Printf("Warning: VM %v has no assigned IPs on eth%v!!!", vmDef.vmname, vmIfNum)
+				continue
+			}
+			
+			allowedIPs := nodeIPs[vmDef.vmname][vmIfNum]
+		
+			if len(allowedIPs) < 1 {
+				log.Printf("Warning: VM %v has no assigned IPs on eth%v!!!", vmDef.vmname, vmIfNum)
+				continue
+			}
+			
+			fmt.Fprintf(dhcpConfig, "\nhost %v_eth%v {\n\thardware ethernet %v;\n\tfixed-address %v;\n}\n", vmDef.vmname, vmIfNum, vmIfDef.mac, allowedIPs[0])
+		}
+	}
+	
+	dhcpConfig.Close()
+	
+	exec.Command("sudo", "/usr/sbin/service", "isc-dhcp-server", "restart").Run()
+}
+
+func maintainBridge(vmDefs map[string]VMNetDefinition, number int, master string) {
+}
+
+func maintainVSwitch(vmDefs map[string]VMNetDefinition, number int, master string) {
+	cmd := exec.Command("sudo", "ovs-ofctl", "dump-ports-desc", master)
 	output, err := cmd.Output()
 	if err != nil {
 		log.Printf("ofctl error: %v", err)
 		return
 	}
 	outputBufio := bufio.NewReader(bytes.NewReader(output))
-	
-	output, err = exec.Command("sudo", "/root/flows.sh").Output()
-	if err != nil {
-		log.Printf("flows.sh error: %v", err)
-		return
-	}
 	
 	ethPortID := string(output)
 	
@@ -146,34 +190,12 @@ func maintainVSwitch(vmDefs map[string]VMNetDefinition) {
 		}
 		portID := outSplit[1]
 		
-		allowedIPs := nodeIPs[vmDef.vmname]
+		allowedIPs := nodeIPs[vmDef.vmname][number]
 		
 		for _, allowedIP := range allowedIPs {
-			exec.Command("sudo", "ovs-ofctl", "add-flow", "ovs0", "ip,priority=3,nw_dst=" + allowedIP + ",actions=mod_dl_dst=" + vmDef.mac + ",output:" + portID).Run()
-			//exec.Command("sudo", "ovs-ofctl", "add-flow", "xovs0", "ip,priority=3,nw_dst=" + allowedIP + ",output:" + portID).Run()
-			exec.Command("sudo", "ovs-ofctl", "add-flow", "ovs0", "ip,priority=2,nw_src=" + allowedIP + ",actions=output:" + ethPortID).Run()
+			exec.Command("sudo", "ovs-ofctl", "add-flow", master, "ip,priority=3,nw_dst=" + allowedIP + ",actions=mod_dl_dst=" + vmDef.ifaces[number].mac + ",output:" + portID).Run()
+			//exec.Command("sudo", "ovs-ofctl", "add-flow", master, "ip,priority=3,nw_dst=" + allowedIP + ",output:" + portID).Run()
+			exec.Command("sudo", "ovs-ofctl", "add-flow", master, "ip,priority=2,nw_src=" + allowedIP + ",actions=output:" + ethPortID).Run()
 		}
 	}
-	
-	//DHCP
-	dhcpConfig, _ := os.Create("/etc/dhcp/dhcpd.conf")
-	dhcpHeader, _ := os.Open("dhcpd.conf.head")
-	io.Copy(dhcpConfig, dhcpHeader)
-	dhcpHeader.Close()
-	
-	for _, vmDef := range vmDefs {
-		allowedIPs := nodeIPs[vmDef.vmname]
-		
-		if len(allowedIPs) < 1 {
-			log.Printf("Warning: VM %v has no assigned IPs!!!", vmDef.vmname)
-			continue
-		}
-		
-		fmt.Fprintf(dhcpConfig, "\nhost %v_ext {\n\thardware ethernet %v;\n\tfixed-address %v;\n}\n", vmDef.vmname, vmDef.mac, allowedIPs[0])
-		fmt.Fprintf(dhcpConfig, "\nhost %v_int {\n\thardware ethernet %v;\n\tfixed-address 10.88.1.%v;\n}\n", vmDef.vmname, vmDef.mac2, strings.Split(allowedIPs[0], ".")[3])
-	}
-	
-	dhcpConfig.Close()
-	
-	exec.Command("sudo", "/usr/sbin/service", "isc-dhcp-server", "restart").Run()
 }

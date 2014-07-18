@@ -51,7 +51,7 @@ func maintainVMList() {
 		delete(vmDomains.m, virName)
 	}
 	
-	maintainVSwitch(vmNWParams)
+	maintainInterfaces(vmNWParams)
 }	
 
 func maintainVMListType(vmType string, vmNWParams map[string]VMNetDefinition) {
@@ -100,7 +100,9 @@ func maintainVMListType(vmType string, vmNWParams map[string]VMNetDefinition) {
 		
 		virNWParams := *GetNWParams(virName, vmType)
 		virNWParams.vmid = virDomainID
-		vmNWParams[virNWParams.ifname] = virNWParams
+		for _, virNWIface := range virNWParams.ifaces {
+			vmNWParams[virNWIface.ifname] = virNWParams
+		}
 	}
 	
 	for _, virName := range virDomainsOffline {
