@@ -135,21 +135,29 @@ func maintainInterfaces(vmDefs map[string]VMNetDefinition) {
 	io.Copy(dhcpConfig, dhcpHeader)
 	dhcpHeader.Close()
 	
+	triedIfNames := make(map[string]bool)
+	
 	for _, vmDef := range vmDefs {		
 		for vmIfNum, vmIfDef := range vmDef.ifaces {
+			ifName := fmt.Sprintf("%v_eth%v", vmDef.vmname, vmIfNum)
+			if triedIfNames[ifName] {
+				continue
+			}
+			triedIfNames[ifName] = true
+		
 			if vmIfNum >= len(nodeIPs[vmDef.vmname]) {
-				log.Printf("Warning: VM %v has no assigned IPs on eth%v!!!", vmDef.vmname, vmIfNum)
+				log.Printf("Warning: VM if %v has no assigned IPs!!!", ifName)
 				continue
 			}
 			
 			allowedIPs := nodeIPs[vmDef.vmname][vmIfNum]
 		
 			if len(allowedIPs) < 1 {
-				log.Printf("Warning: VM %v has no assigned IPs on eth%v!!!", vmDef.vmname, vmIfNum)
+				log.Printf("Warning: VM if %v has no assigned IPs!!!", ifName)
 				continue
 			}
 			
-			fmt.Fprintf(dhcpConfig, "\nhost %v_eth%v {\n\thardware ethernet %v;\n\tfixed-address %v;\n}\n", vmDef.vmname, vmIfNum, vmIfDef.mac, allowedIPs[0])
+			fmt.Fprintf(dhcpConfig, "\nhost %v {\n\thardware ethernet %v;\n\tfixed-address %v;\n}\n", ifName, vmIfDef.mac, allowedIPs[0])
 		}
 	}
 	
